@@ -1,31 +1,61 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using System.Net.Mail;
 using TicketProcessingApp.Data;
-using TicketProcessor;
+using TicketProcessingApp.Models;
 
 public class Program
 {
     public static void Main(string[] args)
     {
-        CreateHostBuilder(args).Build().Run();
+        while (true)
+        {
+            ProcessTickets();
+            Thread.Sleep(60000); // Wait for 60 seconds
+        }
     }
 
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-           Host.CreateDefaultBuilder(args)
-               .ConfigureServices((hostContext, services) =>
-               {
-                   var configuration = hostContext.Configuration;
-                   var connectionString = configuration.GetConnectionString("TicketConnectionStrings");
-                   services.AddDbContext<AppDbContext>(options =>
-                       options.UseSqlServer(connectionString, builder =>
-                       {
-                           builder.EnableRetryOnFailure(5, TimeSpan.FromSeconds(120), null);
-                       }));
-                   services.AddHostedService<TicketProcessorService>();
-                   services.AddLogging(configure => configure.AddConsole());
-               });
+    public static void ProcessTickets()
+    {
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        optionsBuilder.UseInMemoryDatabase("TicketList");
 
+        using (var context = new AppDbContext(optionsBuilder.Options))
+        {
+            var highPriorityTickets = context.TicketSet
+                .Where(t => t.Priority == "High" && !t.EmailSent)
+                .ToList();
+
+            foreach (var ticket in highPriorityTickets)
+            {
+                SendEmail(ticket);
+                ticket.EmailSent = true;
+            }
+
+            context.SaveChanges();
+        }
+    }
+
+    public static void SendEmail(TicketModel ticket)
+    {
+        try
+        {
+            var mail = new MailMessage("mk12dwd@gmail.com", "manju4m@gmail.com");
+            mail.Subject = $"High Priority Ticket: {ticket.Title}";
+            mail.Body = $"Ticket Details:\n\n" +
+                        $"User: {ticket.UserId}\n" +
+                        $"Module: {ticket.Module}\n" +
+                        $"Order ID: {ticket.OrderId}\n" +
+                        $"Description: {ticket.Description}";
+
+            using (var smtpClient = new SmtpClient("smtp.example.com"))
+            {
+                smtpClient.Credentials = new System.Net.NetworkCredential("mk12dwd@gmail.com", "");
+                smtpClient.Send(mail);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to send email: {ex.Message}");
+        }
+    }
 }

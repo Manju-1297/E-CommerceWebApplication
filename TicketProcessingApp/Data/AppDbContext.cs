@@ -10,7 +10,7 @@ namespace TicketProcessingApp.Data
 {
     public class AppDbContext:DbContext
     {
-        public DbSet<Ticket> TicketSet { get; set; }
+        public DbSet<TicketModel> TicketSet { get; set; }
         public AppDbContext(DbContextOptions<AppDbContext> options):base(options)
         {
                 
